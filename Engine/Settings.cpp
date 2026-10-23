@@ -72,6 +72,15 @@
 
 #define NATRON_CUSTOM_OCIO_CONFIG_NAME "Custom config"
 
+// OCIO >= 2.2 resolves "ocio://<name>" to a config built into the library (no file on disk).
+#define NATRON_OCIO_BUILTIN_URI_PREFIX "ocio://"
+
+static bool
+isOcioBuiltinConfigURI(const QString& config)
+{
+    return config.startsWith( QString::fromUtf8(NATRON_OCIO_BUILTIN_URI_PREFIX) );
+}
+
 #define NATRON_DEFAULT_APPEARANCE_VERSION 1
 
 #define NATRON_CUSTOM_HOST_NAME_ENTRY "Custom..."
@@ -665,6 +674,16 @@ Settings::initializeKnobsColorManagement()
             break; //if we found 1 OpenColorIO-Configs directory, skip the next
         }
     }
+    // ACES 2.0 configs built into OpenColorIO 2.5+. The exact versions are pinned (rather than the
+    // "-latest" aliases) so that a project keeps the same look when OCIO is upgraded.
+    configs.push_back( ChoiceOption( NATRON_OCIO_BUILTIN_URI_PREFIX "studio-config-v4.0.0_aces-v2.0_ocio-v2.5",
+                                     tr("ACES 2.0 Studio (OCIO built-in)").toStdString(),
+                                     tr("ACES 2.0 studio config built into OpenColorIO 2.5 and later: camera log spaces, "
+                                        "SDR and HDR displays. Requires OpenColorIO 2.5 or later.").toStdString() ) );
+    configs.push_back( ChoiceOption( NATRON_OCIO_BUILTIN_URI_PREFIX "cg-config-v4.0.0_aces-v2.0_ocio-v2.5",
+                                     tr("ACES 2.0 CG (OCIO built-in)").toStdString(),
+                                     tr("ACES 2.0 config for CG work built into OpenColorIO 2.5 and later: "
+                                        "a smaller set of color spaces than the studio config. Requires OpenColorIO 2.5 or later.").toStdString() ) );
     configs.push_back(ChoiceOption(NATRON_CUSTOM_OCIO_CONFIG_NAME));
     _ocioConfigKnob->populateChoices(configs);
     _ocioConfigKnob->setDefaultValue(defaultIndex, 0);
@@ -687,7 +706,8 @@ Settings::initializeKnobsColorManagement()
     }
 
     _customOcioConfigFile->setHintToolTip( tr("OpenColorIO configuration file (config.ocio) to use when \"%1\" "
-                                              "is selected as the OpenColorIO config.").arg( QString::fromUtf8(NATRON_CUSTOM_OCIO_CONFIG_NAME) ) );
+                                              "is selected as the OpenColorIO config. A built-in config URI "
+                                              "such as ocio://studio-config-latest is also accepted.").arg( QString::fromUtf8(NATRON_CUSTOM_OCIO_CONFIG_NAME) ) );
     _ocioTab->addKnob(_customOcioConfigFile);
 
     _warnOcioConfigKnobChanged = AppManager::createKnob<KnobBool>( this, tr("Warn on OpenColorIO config change") );
@@ -2186,7 +2206,7 @@ Settings::tryLoadOpenColorIOConfig()
         configFile = QString::fromUtf8( file.c_str() );
     }
     if ( !configFile.isEmpty() ) {
-        if ( !QFile::exists(configFile) )  {
+        if ( !isOcioBuiltinConfigURI(configFile) && !QFile::exists(configFile) )  {
             Dialogs::errorDialog( "OpenColorIO", tr("%1: No such file.").arg(configFile).toStdString() );
 
             return false;
@@ -2196,8 +2216,15 @@ Settings::tryLoadOpenColorIOConfig()
         try {
             ///try to load from the combobox
             QString activeEntryText  = QString::fromUtf8( _ocioConfigKnob->getActiveEntry().id.c_str() );
+            if ( isOcioBuiltinConfigURI(activeEntryText) ) {
+                configFile = activeEntryText;
+            }
             QString configFileName = QString( activeEntryText + QString::fromUtf8(".ocio") );
-            QStringList defaultConfigsPaths = getDefaultOcioConfigPaths();
+            QStringList defaultConfigsPaths;
+            if ( configFile.isEmpty() ) {
+                // not a built-in config: look for it on disk
+                defaultConfigsPaths = getDefaultOcioConfigPaths();
+            }
             Q_FOREACH(const QString &defaultConfigsDirStr, defaultConfigsPaths) {
                 QDir defaultConfigsDir(defaultConfigsDirStr);
 
@@ -2244,7 +2271,11 @@ Settings::tryLoadOpenColorIOConfig()
     qputenv( NATRON_OCIO_ENV_VAR_NAME, stdConfigFile.c_str() );
 #endif
 
-    std::string configPath = SequenceParsing::removePath(stdConfigFile);
+    // directory of the config, exposed to projects as [OCIO]; built-in configs have none
+    std::string configPath;
+    if ( !isOcioBuiltinConfigURI(configFile) ) {
+        configPath = SequenceParsing::removePath(stdConfigFile);
+    }
     if ( !configPath.empty() && (configPath[configPath.size() - 1] == '/') ) {
         configPath.erase(configPath.size() - 1, 1);
     }
