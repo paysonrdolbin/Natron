@@ -136,6 +136,7 @@ SOURCES += \
     Noise.cpp \
     NonKeyParams.cpp \
     NonKeyParamsSerialization.cpp \
+    OCIOViewerProcess.cpp \
     OSGLContext.cpp \
     OSGLContext_mac.cpp \
     OSGLContext_wayland.cpp \
@@ -302,6 +303,7 @@ HEADERS += \
     NoiseTables.h \
     NonKeyParams.h \
     NonKeyParamsSerialization.h \
+    OCIOViewerProcess.h \
     OSGLContext.h \
     OSGLContext_mac.h \
     OSGLContext_win.h \

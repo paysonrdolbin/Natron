@@ -20,6 +20,9 @@
 include(FindPkgConfig)
 
 pkg_check_modules(Cairo REQUIRED IMPORTED_TARGET cairo fontconfig)
+if(NATRON_OCIO)
+    pkg_check_modules(OpenColorIO REQUIRED IMPORTED_TARGET OpenColorIO>=2.1)
+endif()
 
 file(GLOB NatronEngine_HEADERS *.h)
 file(GLOB NatronEngine_SOURCES *.cpp)
@@ -91,6 +94,12 @@ target_link_libraries(NatronEngine
 if(WIN32)
     #System library is required on windows to map network share names from drive letters
     target_link_libraries(NatronEngine PRIVATE mpr)
+endif()
+
+if(NATRON_OCIO)
+    # PUBLIC: NATRON_USE_OCIO must also be seen by Gui and the tests
+    target_link_libraries(NatronEngine PUBLIC PkgConfig::OpenColorIO)
+    target_compile_definitions(NatronEngine PUBLIC NATRON_USE_OCIO)
 endif()
 
 target_include_directories(NatronEngine

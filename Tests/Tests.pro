@@ -49,6 +49,7 @@ SOURCES += \
     Image_Test.cpp \
     KnobFile_Test.cpp \
     Lut_Test.cpp \
+    OCIOViewerProcess_Test.cpp \
     OSGLContext_Test.cpp \
     Tracker_Test.cpp \
     wmain.cpp

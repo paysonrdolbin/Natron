@@ -33,6 +33,7 @@ include(GNUInstallDirs)
 option(NATRON_QT6 "use Qt6" OFF)
 option(NATRON_SYSTEM_LIBS "use system versions of dependencies instead of bundled ones" OFF)
 option(NATRON_BUILD_TESTS "build the Natron test suite" ON)
+option(NATRON_OCIO "use OpenColorIO in Natron itself (OCIO display/view in the viewer)" OFF)
 
 set(IS_DEBUG_BUILD OFF)
 if(CMAKE_BUILD_TYPE MATCHES "^(debug|Debug|DEBUG)$")

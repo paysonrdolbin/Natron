@@ -25,6 +25,8 @@ include(libs.pri)
 CONFIG += exceptions warn_on no_keywords
 DEFINES += OFX_EXTENSIONS_NUKE OFX_EXTENSIONS_TUTTLE OFX_EXTENSIONS_VEGAS OFX_SUPPORTS_PARAMETRIC OFX_EXTENSIONS_TUTTLE OFX_EXTENSIONS_NATRON OFX_EXTENSIONS_RESOLVE OFX_SUPPORTS_OPENGLRENDER
 DEFINES += OFX_SUPPORTS_MULTITHREAD
+# CONFIG+=ocio: use OpenColorIO in Natron itself (OCIO display/view in the viewer)
+ocio: DEFINES += NATRON_USE_OCIO
 DEFINES += OFX_SUPPORTS_DIALOG
 #Commented-out because many plug-in vendors do not implement it correctly
 #DEFINES += OFX_SUPPORTS_DIALOG_V1
@@ -380,6 +382,7 @@ win32-g++ {
 
     expat:     PKGCONFIG += expat
     cairo:     PKGCONFIG += cairo fontconfig
+    ocio:      PKGCONFIG += OpenColorIO
     equals(QT_MAJOR_VERSION, 5) {
       shiboken:  INCLUDEPATH += $$system(pkg-config --variable=includedir shiboken2)
       PYSIDE_INCLUDEDIR = $$system(pkg-config --variable=includedir pyside2)
@@ -413,6 +416,7 @@ unix {
      # Linking cairo dynamically is OK even on Linux, where it links to X11,
      # since we need X11 for OpenGL rendering anyway.
      cairo:     PKGCONFIG += cairo fontconfig
+     ocio:      PKGCONFIG += OpenColorIO
 
      # GLFW will require a link to X11 on linux and OpenGL framework on OS X
      linux-*|freebsd-* {
