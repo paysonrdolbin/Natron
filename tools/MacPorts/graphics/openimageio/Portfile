@@ -36,12 +36,11 @@ if {${port_latest}} {
 
 github.tarball_from     archive
 
-+patchfiles-append oiio-2.0.8-invalidatespec.patch
-+patchfiles-append oiio-2.0.8-atomic-load.patch
-+patchfiles-append oiio-2.3.20-strnlen.patch
-+patchfiles-append oiio-2.4.6-sysutil.patch
-+patchfiles-append oiio-2.4.6-filesystem.patch
-+patchfiles-append   patch-2.4.5-cmake-disable-wall-werror.diff
+# OIIO 3.1: 2.4.6-sysutil/filesystem (macOS < 10.13 only) and
+# 2.4.5-cmake-disable-wall-werror (release builds don't -Werror) no longer apply.
+patchfiles-append oiio-3.1-invalidatespec.patch
+patchfiles-append oiio-2.0.8-atomic-load.patch
+patchfiles-append oiio-2.3.20-strnlen.patch
 
 if {${port_latest}} {
     depends_lib-append  port:imath \
@@ -116,7 +115,7 @@ if {[string match *clang* ${configure.compiler}]} {
 }
 
 # Don't treat clang warnings as errors
-configure.args-append   -DSTOP_ON_WARNINGS=OFF
+configure.args-append   -DSTOP_ON_WARNING=OFF
 
 # avoid
 #    ccache: error: Failed to create directory ${prefix}/var/macports/build/.ccache/tmp: Operation not permitted
