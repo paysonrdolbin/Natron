@@ -79,6 +79,28 @@ const char* fragRGB =
     "	gl_FragColor = color_tmp;\n"
     "}\n"
 ;
+const char* fragOCIOMain =
+    "uniform sampler2D Tex;\n"
+    "uniform float gain;\n"
+    "uniform float offset;\n"
+    "uniform float gamma;\n"
+    "\n"
+    "void main() {\n"
+    "    vec4 color_tmp = texture2D(Tex,gl_TexCoord[0].st);\n"
+    "    color_tmp.rgb = (color_tmp.rgb * gain) + offset;\n"
+    "    color_tmp = OCIODisplay(color_tmp);\n"
+    "    if (gamma <= 0.) {\n"
+    "        color_tmp.r = (color_tmp.r >= 1.) ? 1. : 0.;\n"
+    "        color_tmp.g = (color_tmp.g >= 1.) ? 1. : 0.;\n"
+    "        color_tmp.b = (color_tmp.b >= 1.) ? 1. : 0.;\n"
+    "    } else {\n"
+    "        color_tmp.r = pow(color_tmp.r, 1./gamma);\n"
+    "        color_tmp.g = pow(color_tmp.g, 1./gamma);\n"
+    "        color_tmp.b = pow(color_tmp.b, 1./gamma);\n"
+    "    }\n"
+    "    gl_FragColor = color_tmp;\n"
+    "}\n"
+;
 const char* vertRGB =
     "void main()\n"
     "{\n"

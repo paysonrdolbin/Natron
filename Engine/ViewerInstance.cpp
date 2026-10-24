@@ -163,8 +163,8 @@ ViewerInstance::lutFromColorspace(ViewerColorSpaceEnum cs)
  * or NULL if there is no usable config, display or view. The error is reported once per message.
  **/
 static OCIOViewerProcessorPtr
-getOCIOProcessor(std::string display,
-                 std::string view)
+resolveOCIOProcessor(std::string display,
+                     std::string view)
 {
     if ( display.empty() ) {
         display = OCIOViewerProcess::getDefaultDisplay();
@@ -995,7 +995,7 @@ ViewerInstance::setupMinimalUpdateViewerParams(const SequenceTime time,
         ocioView = _imp->viewerParamsOCIOView;
     }
     if (outArgs->params->lut == eViewerColorSpaceOCIO) {
-        outArgs->params->ocioProcessor = getOCIOProcessor(ocioDisplay, ocioView);
+        outArgs->params->ocioProcessor = resolveOCIOProcessor(ocioDisplay, ocioView);
         if (!outArgs->params->ocioProcessor) {
             // no usable OCIO config/display/view: show the image with the default sRGB LUT
             outArgs->params->lut = eViewerColorSpaceSRGB;
@@ -3254,6 +3254,16 @@ ViewerInstance::getOCIODisplayView(std::string* display,
 
     *display = _imp->viewerParamsOCIODisplay;
     *view = _imp->viewerParamsOCIOView;
+}
+
+OCIOViewerProcessorPtr
+ViewerInstance::getOCIOProcessor() const
+{
+    std::string display, view;
+
+    getOCIODisplayView(&display, &view);
+
+    return resolveOCIOProcessor(display, view);
 }
 
 void

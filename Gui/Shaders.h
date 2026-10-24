@@ -32,6 +32,9 @@ NATRON_NAMESPACE_ENTER
 
 extern const char* fragRGB;
 extern const char* vertRGB;
+// main() of the viewer shader for OCIO display/view: OpenColorIO's generated GLSL 1.20 function
+// "vec4 OCIODisplay(vec4)" must be prepended. Same gain/offset and gamma as fragRGB.
+extern const char* fragOCIOMain;
 
 /*There's a black texture used for when the user disconnect the viewer
    It's not just a shader,because we still need coordinates feedback.

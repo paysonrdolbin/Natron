@@ -30,6 +30,7 @@
 
 #include <string>
 
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/OutputEffectInstance.h"
 #include "Engine/ViewIdx.h"
 #include "Engine/EngineFwd.h"
@@ -277,6 +278,9 @@ public:
     void setOCIODisplayView(const std::string& display, const std::string& view);
 
     void getOCIODisplayView(std::string* display, std::string* view) const;
+
+    /// The OCIO transform for the current display/view (NULL if unusable). Used by the GPU display path.
+    OCIOViewerProcessorPtr getOCIOProcessor() const;
 
     virtual void onInputChanged(int inputNb) OVERRIDE FINAL;
 

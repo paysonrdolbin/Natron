@@ -36,6 +36,7 @@ CLANG_DIAG_ON(deprecated)
 CLANG_DIAG_ON(uninitialized)
 
 #include "Engine/Image.h"
+#include "Engine/OCIOViewerProcess.h"
 
 #include "Gui/TextRenderer.h"
 #include "Gui/ViewerGL.h"
@@ -161,6 +162,12 @@ struct ViewerGL::Implementation
     std::unique_ptr<QOpenGLShaderProgram> shaderRGB; /*!< The shader program used to render RGB data*/
     std::unique_ptr<QOpenGLShaderProgram> shaderBlack; /*!< The shader program used when the viewer is disconnected.*/
     bool shaderLoaded; /*!< Flag to check whether the shaders have already been loaded.*/
+    std::unique_ptr<QOpenGLShaderProgram> shaderOCIO; /*!< shaderRGB with the OCIO display/view transform instead of the LUT*/
+    std::string shaderOCIOCacheID; /*!< The OCIO transform shaderOCIO was built for*/
+    std::vector<GLuint> ocioTextures; /*!< The lookup tables of shaderOCIO, bound on texture units 1..n*/
+    std::vector<GLenum> ocioTextureTargets; /*!< GL_TEXTURE_2D or GL_TEXTURE_3D, for each of ocioTextures*/
+    std::vector<std::string> ocioSamplerNames; /*!< The sampler uniform of each of ocioTextures*/
+    QOpenGLShaderProgram* activeShader; /*!< The program bound by activateShaderRGB()*/
     InfoViewerWidget* infoViewer[2]; /*!< Pointer to the info bar below the viewer holding pixel/mouse/format related info*/
     ViewerTab* const viewerTab; /*!< Pointer to the viewer tab GUI*/
     bool zoomOrPannedSinceLastFit; //< true if the user zoomed or panned the image since the last call to fitToRoD
@@ -254,6 +261,14 @@ public:
      *@brief Starts using the RGB shader to display the frame
      **/
     void activateShaderRGB(int texIndex);
+
+    /**
+     *@brief Builds shaderOCIO (and uploads its lookup tables) for the given OCIO transform, if not done
+     * yet. Returns false if the shader cannot be built.
+     **/
+    bool ensureOCIOShader(const OCIOViewerShader& shader, const std::string& cacheID);
+
+    void deleteOCIOShader();
 
     enum WipePolygonEnum
     {
