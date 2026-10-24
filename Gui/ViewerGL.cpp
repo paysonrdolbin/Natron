@@ -61,6 +61,7 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 #include "Engine/Texture.h"
 #include "Engine/Utils.h"
 #include "Engine/ViewIdx.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/ViewerInstance.h"
 
 #include "Gui/ActionShortcuts.h" // kShortcutGroupViewer ...
@@ -4257,6 +4258,29 @@ getColorAtInternal(const ImagePtr& image,
     return false;
 } // getColorAtInternal
 
+/**
+ * @brief With the "OCIO" viewer color space, the picked color in display values (color picker not
+ * linear): the viewer's OCIO display/view (and look) applied to the scene-linear color, as on screen
+ * (before the viewer gain and gamma, like the other color spaces).
+ **/
+static void
+applyViewerOCIOToPickedColor(ViewerInstance* viewer,
+                             float* r,
+                             float* g,
+                             float* b)
+{
+    OCIOViewerProcessorPtr proc = viewer ? viewer->getOCIOProcessor() : OCIOViewerProcessorPtr();
+
+    if (!proc) {
+        return;
+    }
+    float pixel[4] = { *r, *g, *b, 1.f };
+    proc->applyRGBA(pixel, 1);
+    *r = pixel[0];
+    *g = pixel[1];
+    *b = pixel[2];
+}
+
 bool
 ViewerGL::getColorAt(double x,
                      double y,           // x and y in canonical coordinates
@@ -4351,6 +4375,9 @@ ViewerGL::getColorAt(double x,
     default:
         gotval = false;
         break;
+    }
+    if ( gotval && !forceLinear && (_imp->displayingImageLut == eViewerColorSpaceOCIO) && image->getComponents().isColorPlane() ) {
+        applyViewerOCIOToPickedColor(_imp->viewerTab->getInternalNode(), r, g, b);
     }
     *imgMmlevel = image->getMipmapLevel();
 
@@ -4542,6 +4569,10 @@ ViewerGL::getColorAtRect(const RectD &rect, // rectangle in canonical coordinate
         *g = gSum / area;
         *b = bSum / area;
         *a = aSum / area;
+        if ( !forceLinear && (_imp->displayingImageLut == eViewerColorSpaceOCIO) && image->getComponents().isColorPlane() ) {
+            // the average of the scene-linear colors, then the display transform
+            applyViewerOCIOToPickedColor(_imp->viewerTab->getInternalNode(), r, g, b);
+        }
 
         return true;
     }
