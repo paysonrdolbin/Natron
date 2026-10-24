@@ -29,6 +29,7 @@
 #include <algorithm> // min, max
 #include <ios>
 #include <limits>
+#include <cctype> // isalnum
 #include <cstdlib> // strtoul
 #include <cerrno> // errno
 #include <cassert>
@@ -2493,9 +2494,31 @@ Project::fixFilePath(const std::string& projectPathName,
     }
 }
 
+// A URI such as "ocio://studio-config-latest" (an OpenColorIO built-in config) is not a file path.
+static bool
+isURI(const std::string& str)
+{
+    const std::size_t schemeEnd = str.find("://");
+
+    if ( (schemeEnd == std::string::npos) || (schemeEnd < 2) ) { // 2: not a Windows drive letter
+        return false;
+    }
+    for (std::size_t i = 0; i < schemeEnd; ++i) {
+        const char c = str[i];
+        if ( !std::isalnum( (unsigned char)c ) && (c != '+') && (c != '-') && (c != '.') ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool
 Project::isRelative(const std::string& str)
 {
+    if ( isURI(str) ) {
+        return false;
+    }
 #ifdef __NATRON_WIN32__
 
     return ( str.empty() || ( !str.empty() && (str[0] != '/')
