@@ -764,6 +764,16 @@ ReadNodePrivate::createReadNode(bool throwErrors,
 
         //We need to explcitly refresh the Python knobs since we attached the embedded node knobs into this node.
         _publicInterface->getNode()->declarePythonFields();
+
+        // The file name was set above before embeddedPlugin pointed to the new decoder, so the change
+        // that knobChanged() forwards never reached it. Notify it now, so that it guesses the parameters
+        // of the new file (colorspace, premultiplication, components) as it does for a user edit.
+        if (node && !serialization && !filename.empty()) {
+            KnobIPtr fileKnob = node->getKnobByName(kOfxImageEffectFileParamName);
+            if (fileKnob) {
+                node->getEffectInstance()->onKnobValueChanged_public(fileKnob.get(), eValueChangedReasonNatronInternalEdited, _publicInterface->getCurrentTime(), ViewSpec(0), true);
+            }
+        }
     }
 
 
