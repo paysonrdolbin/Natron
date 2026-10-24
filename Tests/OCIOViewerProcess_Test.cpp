@@ -25,6 +25,8 @@
 #include "Global/Macros.h"
 
 #include <algorithm>
+#include <cmath>
+#include <vector>
 #include <cstdlib>
 #include <string>
 #include <gtest/gtest.h>
@@ -134,6 +136,68 @@ TEST(OCIOViewerProcess, CPUMatchesOCIO)
     EXPECT_GT(pixels[4], 0.15f);
     EXPECT_EQ(0.5f, pixels[11]);
     EXPECT_EQ(0.f, pixels[19]);
+}
+
+TEST(OCIOViewerProcess, LookMatchesOCIO)
+{
+    ScopedOCIOEnv env(kACES2Studio);
+    const char* kLook = "ACES 1.3 Reference Gamut Compression";
+    const std::vector<std::string> looks = OCIOViewerProcess::getLooks();
+    ASSERT_NE( looks.end(), std::find(looks.begin(), looks.end(), kLook) );
+
+    std::string error;
+    OCIOViewerProcessorPtr proc = OCIOViewerProcess::getProcessor(kDisplay, kView, kLook, &error);
+    ASSERT_TRUE(proc != nullptr) << error;
+    EXPECT_EQ( proc, OCIOViewerProcess::getProcessor(kDisplay, kView, kLook) );
+    OCIOViewerProcessorPtr noLook = OCIOViewerProcess::getProcessor(kDisplay, kView);
+    ASSERT_TRUE(noLook != nullptr);
+    EXPECT_NE( noLook->getCacheID(), proc->getCacheID() ); // the viewer cache must tell them apart
+    EXPECT_EQ( noLook, OCIOViewerProcess::getProcessor(kDisplay, kView, std::string()) );
+
+    // reference built differently: the look as a LookTransform in scene_linear, then the display/view
+    namespace OCIO = OCIO_NAMESPACE;
+    OCIO::ConstConfigRcPtr config = OCIO::Config::CreateFromFile(kACES2Studio);
+    OCIO::LookTransformRcPtr lt = OCIO::LookTransform::Create();
+    lt->setSrc("ACEScg");
+    lt->setDst("ACEScg");
+    lt->setLooks(kLook);
+    OCIO::ConstCPUProcessorRcPtr refLook = config->getProcessor(lt)->getDefaultCPUProcessor();
+    OCIO::DisplayViewTransformRcPtr t = OCIO::DisplayViewTransform::Create();
+    t->setSrc("ACEScg");
+    t->setDisplay(kDisplay);
+    t->setView(kView);
+    OCIO::ConstCPUProcessorRcPtr refView = config->getProcessor(t)->getDefaultCPUProcessor();
+
+    // a gray (unchanged by the gamut compression) and saturated, out-of-gamut colors (compressed)
+    float pixels[3 * 4] = {
+        0.18f, 0.18f, 0.18f, 1.f,
+        0.6f,  0.02f, -0.05f, 1.f,
+        -0.02f, 0.3f, 0.9f,  0.5f,
+    };
+    float expected[3 * 4], withoutLook[3 * 4];
+    std::copy(pixels, pixels + 12, expected);
+    std::copy(pixels, pixels + 12, withoutLook);
+    for (int i = 0; i < 3; ++i) {
+        refLook->applyRGB(&expected[i * 4]);
+        refView->applyRGB(&expected[i * 4]);
+    }
+    noLook->applyRGBA(withoutLook, 3);
+    proc->applyRGBA(pixels, 3);
+    for (int i = 0; i < 12; ++i) {
+        EXPECT_NEAR(expected[i], pixels[i], 1e-4) << "component " << i;
+    }
+    for (int i = 0; i < 3; ++i) {
+        EXPECT_NEAR(withoutLook[i], pixels[i], 1e-4) << "gray component " << i;
+    }
+    float diff = 0.f;
+    for (int i = 4; i < 12; ++i) {
+        diff += std::abs(withoutLook[i] - pixels[i]);
+    }
+    EXPECT_GT(diff, 1e-3f); // the look changes the saturated colors
+    EXPECT_EQ(0.5f, pixels[11]);
+
+    EXPECT_FALSE( bool( OCIOViewerProcess::getProcessor(kDisplay, kView, "No Such Look", &error) ) );
+    EXPECT_FALSE( error.empty() );
 }
 
 TEST(OCIOViewerProcess, GPUShader)

@@ -116,6 +116,7 @@ struct ViewerTabPrivate
     ComboBox* viewerColorSpace;
     ComboBox* viewerOCIODisplay; // OCIO display, shown when viewerColorSpace is "OCIO" (NULL without OCIO support)
     ComboBox* viewerOCIOView; // OCIO view of viewerOCIODisplay
+    ComboBox* viewerOCIOLook; // OCIO look applied before the view ("None" first)
     Button* checkerboardButton;
     Button* pickerButton;
     ComboBox* viewsComboBox;

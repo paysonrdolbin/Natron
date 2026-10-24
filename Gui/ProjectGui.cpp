@@ -374,6 +374,7 @@ loadNodeGuiSerialization(Gui* gui,
             tab->setChannels(found->second.channels);
             // the OCIO display/view first, so that an "OCIO" color space renders only once
             tab->setOCIODisplayView(found->second.ocioDisplay, found->second.ocioView);
+            tab->setOCIOLook(found->second.ocioLook);
             tab->setColorSpace(found->second.colorSpace);
             tab->setGain(found->second.gain);
             tab->setGamma(found->second.gamma);

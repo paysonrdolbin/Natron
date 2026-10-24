@@ -101,6 +101,8 @@ ViewerTab::refreshOCIOMenus()
     _imp->viewerOCIODisplay->setVisible(visible);
     _imp->viewerOCIOView->setVisible(visible);
     if (!visible) {
+        _imp->viewerOCIOLook->setVisible(false);
+
         return;
     }
 
@@ -115,6 +117,7 @@ ViewerTab::refreshOCIOMenus()
         _imp->viewerOCIOView->clear();
         _imp->viewerOCIODisplay->setEnabled(false);
         _imp->viewerOCIOView->setEnabled(false);
+        _imp->viewerOCIOLook->setVisible(false);
 
         return;
     }
@@ -138,6 +141,25 @@ ViewerTab::refreshOCIOMenus()
         _imp->viewerOCIOView->addItem( QString::fromUtf8( views[i].c_str() ) );
     }
     _imp->viewerOCIOView->setCurrentText_no_emit( QString::fromUtf8( view.c_str() ) );
+
+    // the looks menu, only if the config has looks
+    const std::vector<std::string> looks = OCIOViewerProcess::getLooks();
+    const std::string look = _imp->viewerNode->getOCIOLook();
+    _imp->viewerOCIOLook->setVisible( !looks.empty() || !look.empty() );
+    _imp->viewerOCIOLook->clear();
+    _imp->viewerOCIOLook->addItem( tr("None") );
+    _imp->viewerOCIOLook->setCurrentIndex_no_emit(0);
+    for (std::size_t i = 0; i < looks.size(); ++i) {
+        _imp->viewerOCIOLook->addItem( QString::fromUtf8( looks[i].c_str() ) );
+        if (looks[i] == look) {
+            _imp->viewerOCIOLook->setCurrentIndex_no_emit(i + 1);
+        }
+    }
+    if ( !look.empty() && ( std::find(looks.begin(), looks.end(), look) == looks.end() ) ) {
+        // e.g. a project saved with another config: show the look, the viewer falls back to sRGB
+        _imp->viewerOCIOLook->addItem( QString::fromUtf8( look.c_str() ) );
+        _imp->viewerOCIOLook->setCurrentIndex_no_emit(looks.size() + 1);
+    }
 }
 
 void
@@ -155,6 +177,12 @@ ViewerTab::onOCIOViewComboBoxChanged(int /*v*/)
 {
     _imp->viewerNode->setOCIODisplayView( _imp->viewerOCIODisplay->getCurrentIndexText().toStdString(),
                                           _imp->viewerOCIOView->getCurrentIndexText().toStdString() );
+}
+
+void
+ViewerTab::onOCIOLookComboBoxChanged(int v)
+{
+    _imp->viewerNode->setOCIOLook( v <= 0 ? std::string() : _imp->viewerOCIOLook->getCurrentIndexText().toStdString() );
 }
 
 void

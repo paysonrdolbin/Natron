@@ -164,7 +164,8 @@ ViewerInstance::lutFromColorspace(ViewerColorSpaceEnum cs)
  **/
 static OCIOViewerProcessorPtr
 resolveOCIOProcessor(std::string display,
-                     std::string view)
+                     std::string view,
+                     const std::string& look)
 {
     if ( display.empty() ) {
         display = OCIOViewerProcess::getDefaultDisplay();
@@ -173,14 +174,14 @@ resolveOCIOProcessor(std::string display,
         view = OCIOViewerProcess::getDefaultView(display);
     }
     std::string error;
-    OCIOViewerProcessorPtr ret = OCIOViewerProcess::getProcessor(display, view, &error);
+    OCIOViewerProcessorPtr ret = OCIOViewerProcess::getProcessor(display, view, look, &error);
     if (!ret) {
         static QMutex lastErrorMutex;
         static std::string lastError;
         QMutexLocker k(&lastErrorMutex);
         if (error != lastError) {
             lastError = error;
-            qDebug() << "Viewer: cannot use OpenColorIO display" << display.c_str() << "view" << view.c_str() << ":" << error.c_str();
+            qDebug() << "Viewer: cannot use OpenColorIO display" << display.c_str() << "view" << view.c_str() << "look" << look.c_str() << ":" << error.c_str();
         }
     }
 
@@ -979,7 +980,7 @@ ViewerInstance::setupMinimalUpdateViewerParams(const SequenceTime time,
     outArgs->params->textureIndex = textureIndex;
 
     // These are the user settings from the viewer UI
-    std::string ocioDisplay, ocioView;
+    std::string ocioDisplay, ocioView, ocioLook;
     {
         QMutexLocker locker(&_imp->viewerParamsMutex);
         outArgs->autoContrast = _imp->viewerParamsAutoContrast;
@@ -993,9 +994,10 @@ ViewerInstance::setupMinimalUpdateViewerParams(const SequenceTime time,
         outArgs->isDoingPartialUpdates = _imp->isDoingPartialUpdates;
         ocioDisplay = _imp->viewerParamsOCIODisplay;
         ocioView = _imp->viewerParamsOCIOView;
+        ocioLook = _imp->viewerParamsOCIOLook;
     }
     if (outArgs->params->lut == eViewerColorSpaceOCIO) {
-        outArgs->params->ocioProcessor = resolveOCIOProcessor(ocioDisplay, ocioView);
+        outArgs->params->ocioProcessor = resolveOCIOProcessor(ocioDisplay, ocioView, ocioLook);
         if (!outArgs->params->ocioProcessor) {
             // no usable OCIO config/display/view: show the image with the default sRGB LUT
             outArgs->params->lut = eViewerColorSpaceSRGB;
@@ -3263,7 +3265,41 @@ ViewerInstance::getOCIOProcessor() const
 
     getOCIODisplayView(&display, &view);
 
-    return resolveOCIOProcessor(display, view);
+    return resolveOCIOProcessor( display, view, getOCIOLook() );
+}
+
+void
+ViewerInstance::setOCIOLook(const std::string& look)
+{
+    // always running in the main thread
+    assert( qApp && qApp->thread() == QThread::currentThread() );
+
+    {
+        QMutexLocker l(&_imp->viewerParamsMutex);
+        if (_imp->viewerParamsOCIOLook == look) {
+            return;
+        }
+        _imp->viewerParamsOCIOLook = look;
+        if (_imp->viewerParamsLut != eViewerColorSpaceOCIO) {
+            return;
+        }
+    }
+    // same update as setOCIODisplayView()
+    assert(_imp->uiContext);
+    if ( ( (_imp->uiContext->getBitDepth() == eImageBitDepthByte) )
+         && !getApp()->getProject()->isLoadingProject() ) {
+        renderCurrentFrame(true);
+    } else {
+        _imp->uiContext->redraw();
+    }
+}
+
+std::string
+ViewerInstance::getOCIOLook() const
+{
+    QMutexLocker l(&_imp->viewerParamsMutex);
+
+    return _imp->viewerParamsOCIOLook;
 }
 
 void

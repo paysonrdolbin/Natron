@@ -520,8 +520,15 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
                                               "The view transform applied for the display, e.g. an ACES output transform. "
                                               "The image is taken to be in the scene_linear role of the configuration.") + QString::fromUtf8("</p>") );
         _imp->secondRowLayout->addWidget(_imp->viewerOCIOView);
+        _imp->viewerOCIOLook = new ComboBox(_imp->secondSettingsRow);
+        _imp->viewerOCIOLook->setToolTip( QString::fromUtf8( "<p><b>") + tr("OpenColorIO look:") + QString::fromUtf8("</b></p><p>") + tr(
+                                              "A look of the OpenColorIO configuration applied before the view transform, "
+                                              "e.g. a grade or a gamut compression. It replaces the looks the view may have. "
+                                              "None: the view as defined by the configuration.") + QString::fromUtf8("</p>") );
+        _imp->secondRowLayout->addWidget(_imp->viewerOCIOLook);
         _imp->viewerOCIODisplay->hide();
         _imp->viewerOCIOView->hide();
+        _imp->viewerOCIOLook->hide();
     }
     _imp->viewerColorSpace->setCurrentIndex(1);
 
@@ -1061,6 +1068,8 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
                           SLOT(onOCIODisplayComboBoxChanged(int)) );
         QObject::connect( _imp->viewerOCIOView, SIGNAL(currentIndexChanged(int)), this,
                           SLOT(onOCIOViewComboBoxChanged(int)) );
+        QObject::connect( _imp->viewerOCIOLook, SIGNAL(currentIndexChanged(int)), this,
+                          SLOT(onOCIOLookComboBoxChanged(int)) );
     }
     QObject::connect( _imp->zoomCombobox, SIGNAL(currentIndexChanged(int)), this, SLOT(onZoomComboboxCurrentIndexChanged(int)) );
     QObject::connect( _imp->viewer, SIGNAL(zoomChanged(int)), this, SLOT(updateZoomComboBox(int)) );

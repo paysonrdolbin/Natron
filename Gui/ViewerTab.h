@@ -144,6 +144,11 @@ public:
 
     void getOCIODisplayView(std::string* display, std::string* view) const;
 
+    /// The OpenColorIO look applied before the view (empty: none, the view as defined by the config).
+    void setOCIOLook(const std::string& look);
+
+    std::string getOCIOLook() const;
+
     void setGain(double d);
 
     double getGain() const;
@@ -363,6 +368,8 @@ public Q_SLOTS:
     void onOCIODisplayComboBoxChanged(int v);
 
     void onOCIOViewComboBoxChanged(int v);
+
+    void onOCIOLookComboBoxChanged(int v);
 
     void onCompositingOperatorIndexChanged(int index);
 

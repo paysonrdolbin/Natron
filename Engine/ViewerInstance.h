@@ -279,6 +279,12 @@ public:
 
     void getOCIODisplayView(std::string* display, std::string* view) const;
 
+    /// The OpenColorIO look applied before the view transform (it overrides the view's looks).
+    /// Empty: the view as defined by the config.
+    void setOCIOLook(const std::string& look);
+
+    std::string getOCIOLook() const;
+
     /// The OCIO transform for the current display/view (NULL if unusable). Used by the GPU display path.
     OCIOViewerProcessorPtr getOCIOProcessor() const;
 

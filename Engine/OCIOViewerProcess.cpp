@@ -130,7 +130,7 @@ struct ConfigState
     std::string configPath; // value of OCIO when the config was loaded
     std::string error;
     OCIO::ConstConfigRcPtr config;
-    std::map<std::pair<std::string, std::string>, OCIOViewerProcessorPtr> processors;
+    std::map<std::vector<std::string>, OCIOViewerProcessorPtr> processors; // (display, view, look) ->
 };
 
 ConfigState&
@@ -265,9 +265,35 @@ OCIOViewerProcess::getDefaultView(const std::string& display)
     return state().config->getDefaultView( display.c_str() );
 }
 
+std::vector<std::string>
+OCIOViewerProcess::getLooks()
+{
+    QMutexLocker k(&state().mutex);
+    std::vector<std::string> ret;
+
+    if ( !loadCurrentConfigLocked(0) ) {
+        return ret;
+    }
+    const OCIO::ConstConfigRcPtr& config = state().config;
+    for (int i = 0; i < config->getNumLooks(); ++i) {
+        ret.push_back( config->getLookNameByIndex(i) );
+    }
+
+    return ret;
+}
+
 OCIOViewerProcessorPtr
 OCIOViewerProcess::getProcessor(const std::string& display,
                                 const std::string& view,
+                                std::string* error)
+{
+    return getProcessor(display, view, std::string(), error);
+}
+
+OCIOViewerProcessorPtr
+OCIOViewerProcess::getProcessor(const std::string& display,
+                                const std::string& view,
+                                const std::string& look,
                                 std::string* error)
 {
     QMutexLocker k(&state().mutex);
@@ -276,8 +302,11 @@ OCIOViewerProcess::getProcessor(const std::string& display,
     if ( !loadCurrentConfigLocked(error) ) {
         return OCIOViewerProcessorPtr();
     }
-    const std::pair<std::string, std::string> key(display, view);
-    std::map<std::pair<std::string, std::string>, OCIOViewerProcessorPtr>::const_iterator found = s.processors.find(key);
+    std::vector<std::string> key(3);
+    key[0] = display;
+    key[1] = view;
+    key[2] = look;
+    std::map<std::vector<std::string>, OCIOViewerProcessorPtr>::const_iterator found = s.processors.find(key);
     if ( found != s.processors.end() ) {
         return found->second;
     }
@@ -288,7 +317,18 @@ OCIOViewerProcess::getProcessor(const std::string& display,
         transform->setSrc(OCIO::ROLE_SCENE_LINEAR); // Natron's working space
         transform->setDisplay( display.c_str() );
         transform->setView( view.c_str() );
-        ret = std::make_shared<OCIOViewerProcessorImpl>( s.config->getProcessor(transform) );
+        if ( look.empty() ) {
+            ret = std::make_shared<OCIOViewerProcessorImpl>( s.config->getProcessor(transform) );
+        } else {
+            if ( !s.config->getLook( look.c_str() ) ) {
+                throw OCIO::Exception( ("The OCIO config has no look " + look).c_str() );
+            }
+            OCIO::LegacyViewingPipelineRcPtr pipeline = OCIO::LegacyViewingPipeline::Create();
+            pipeline->setDisplayViewTransform(transform);
+            pipeline->setLooksOverride( look.c_str() );
+            pipeline->setLooksOverrideEnabled(true);
+            ret = std::make_shared<OCIOViewerProcessorImpl>( pipeline->getProcessor(s.config) );
+        }
     } catch (const OCIO::Exception& e) {
         if (error) {
             *error = e.what();
@@ -355,9 +395,26 @@ OCIOViewerProcess::getDefaultView(const std::string& /*display*/)
     return std::string();
 }
 
+std::vector<std::string>
+OCIOViewerProcess::getLooks()
+{
+    return std::vector<std::string>();
+}
+
 OCIOViewerProcessorPtr
 OCIOViewerProcess::getProcessor(const std::string& /*display*/,
                                 const std::string& /*view*/,
+                                std::string* error)
+{
+    loadCurrentConfig(error);
+
+    return OCIOViewerProcessorPtr();
+}
+
+OCIOViewerProcessorPtr
+OCIOViewerProcess::getProcessor(const std::string& /*display*/,
+                                const std::string& /*view*/,
+                                const std::string& /*look*/,
                                 std::string* error)
 {
     loadCurrentConfig(error);

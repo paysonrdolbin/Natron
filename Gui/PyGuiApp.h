@@ -100,6 +100,11 @@ public:
 
     QString getOCIOView() const;
 
+    /// The OCIO look applied before the view in the "OCIO" color space (empty: none).
+    void setOCIOLook(const QString& look);
+
+    QString getOCIOLook() const;
+
     void setProxyModeEnabled(bool enabled);
 
     bool isProxyModeEnabled() const;

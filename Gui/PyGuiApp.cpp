@@ -861,6 +861,25 @@ PyViewer::getOCIOView() const
 }
 
 void
+PyViewer::setOCIOLook(const QString& look)
+{
+    if ( !getInternalNode()->isActivated() ) {
+        return;
+    }
+    _viewer->setOCIOLook( look.toStdString() );
+}
+
+QString
+PyViewer::getOCIOLook() const
+{
+    if ( !getInternalNode()->isActivated() ) {
+        return QString();
+    }
+
+    return QString::fromUtf8( _viewer->getOCIOLook().c_str() );
+}
+
+void
 PyViewer::setProxyModeEnabled(bool enabled)
 {
     if ( !getInternalNode()->isActivated() ) {

@@ -71,7 +71,8 @@ GCC_DIAG_ON(unused-parameter)
 #define VIEWER_DATA_INTRODUCES_LAYER 13
 #define VIEWER_DATA_INTRODUCES_FULL_FRAME_PROC 14
 #define VIEWER_DATA_INTRODUCES_OCIO_DISPLAY_VIEW 15
-#define VIEWER_DATA_SERIALIZATION_VERSION VIEWER_DATA_INTRODUCES_OCIO_DISPLAY_VIEW
+#define VIEWER_DATA_INTRODUCES_OCIO_LOOK 16
+#define VIEWER_DATA_SERIALIZATION_VERSION VIEWER_DATA_INTRODUCES_OCIO_LOOK
 
 #define PROJECT_GUI_INTRODUCES_BACKDROPS 2
 #define PROJECT_GUI_REMOVES_ALL_NODE_PREVIEW_TOGGLED 3
@@ -117,6 +118,7 @@ struct ViewerData
     unsigned int mipmapLevel;
     std::string colorSpace;
     std::string ocioDisplay, ocioView; // used when colorSpace is "OCIO" (empty: the config's defaults)
+    std::string ocioLook; // applied before the OCIO view (empty: none)
     std::string channels;
     std::string layerName, alphaLayerName;
     bool zoomOrPanSinceLastFit;
@@ -247,6 +249,12 @@ struct ViewerData
         } else {
             ocioDisplay.clear();
             ocioView.clear();
+        }
+
+        if (version >= VIEWER_DATA_INTRODUCES_OCIO_LOOK) {
+            ar & ::boost::serialization::make_nvp("OCIOLook", ocioLook);
+        } else {
+            ocioLook.clear();
         }
     } // serialize
 };

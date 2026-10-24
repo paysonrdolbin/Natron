@@ -178,6 +178,19 @@ ViewerTab::getOCIODisplayView(std::string* display,
 }
 
 void
+ViewerTab::setOCIOLook(const std::string& look)
+{
+    _imp->viewerNode->setOCIOLook(look);
+    refreshOCIOMenus();
+}
+
+std::string
+ViewerTab::getOCIOLook() const
+{
+    return _imp->viewerNode->getOCIOLook();
+}
+
+void
 ViewerTab::setGain(double d)
 {
     double fstop = std::log(d) / M_LN2;

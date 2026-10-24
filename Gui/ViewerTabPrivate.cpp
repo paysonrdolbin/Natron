@@ -98,6 +98,7 @@ ViewerTabPrivate::ViewerTabPrivate(ViewerTab* publicInterface,
     , viewerColorSpace(NULL)
     , viewerOCIODisplay(NULL)
     , viewerOCIOView(NULL)
+    , viewerOCIOLook(NULL)
     , checkerboardButton(NULL)
     , pickerButton(NULL)
     , viewsComboBox(NULL)

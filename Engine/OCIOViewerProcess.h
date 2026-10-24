@@ -111,6 +111,16 @@ public:
     static OCIOViewerProcessorPtr getProcessor(const std::string& display,
                                                const std::string& view,
                                                std::string* error = 0);
+
+    /// The looks of the current config (e.g. "ACES 1.3 Reference Gamut Compression").
+    static std::vector<std::string> getLooks();
+
+    /// The same with a look applied before the view transform (the "looks override" of OCIO's viewing
+    /// pipeline: it replaces the looks of the view; empty: the view as defined by the config).
+    static OCIOViewerProcessorPtr getProcessor(const std::string& display,
+                                               const std::string& view,
+                                               const std::string& look,
+                                               std::string* error = 0);
 };
 
 NATRON_NAMESPACE_EXIT

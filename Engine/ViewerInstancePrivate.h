@@ -388,6 +388,7 @@ public:
                                                  0 = sRGB ,  1 = linear , 2 = Rec 709*/
     std::string viewerParamsOCIODisplay; //< OCIO display used when viewerParamsLut is eViewerColorSpaceOCIO (empty: the config's default)
     std::string viewerParamsOCIOView; //< OCIO view used when viewerParamsLut is eViewerColorSpaceOCIO (empty: the display's default)
+    std::string viewerParamsOCIOLook; //< OCIO look applied before the view (empty: the view's own looks)
     bool viewerParamsAutoContrast;
     DisplayChannelsEnum viewerParamsChannels[2];
     ImagePlaneDesc viewerParamsLayer;
