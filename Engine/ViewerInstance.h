@@ -272,6 +272,12 @@ public:
 
     void onColorSpaceChanged(ViewerColorSpaceEnum colorspace);
 
+    /// The OpenColorIO display and view used when the colorspace is eViewerColorSpaceOCIO.
+    /// Empty strings select the config's default display, or the display's default view.
+    void setOCIODisplayView(const std::string& display, const std::string& view);
+
+    void getOCIODisplayView(std::string* display, std::string* view) const;
+
     virtual void onInputChanged(int inputNb) OVERRIDE FINAL;
 
     void getActiveInputs(int & a, int &b) const;

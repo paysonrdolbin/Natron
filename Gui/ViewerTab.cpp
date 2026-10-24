@@ -39,6 +39,7 @@
 
 #include "Engine/Node.h"
 #include "Engine/NodeGroup.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/OutputSchedulerThread.h" // RenderEngine
 #include "Engine/Project.h"
 #include "Engine/Utils.h" // convertFromPlainText
@@ -505,6 +506,10 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
     _imp->viewerColorSpace->addItem( QString::fromUtf8("sRGB") );
     _imp->viewerColorSpace->addItem( QString::fromUtf8("Rec.709") );
     _imp->viewerColorSpace->addItem( QString::fromUtf8("BT1886") );
+    if ( OCIOViewerProcess::isAvailable() ) {
+        // the OpenColorIO display/view of the viewer (see ViewerTab::setOCIODisplayView())
+        _imp->viewerColorSpace->addItem( QString::fromUtf8("OCIO") );
+    }
     _imp->viewerColorSpace->setCurrentIndex(1);
 
     QPixmap pixCheckerboardEnabled, pixCheckerboardDisabld;

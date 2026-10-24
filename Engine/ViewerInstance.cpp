@@ -40,17 +40,20 @@ CLANG_DIAG_OFF(deprecated)
 #include <QWaitCondition>
 #include <QCoreApplication>
 #include <QThreadPool>
+#include <QDebug>
 CLANG_DIAG_ON(deprecated)
 
 #include "Engine/AppInstance.h"
 #include "Engine/AppManager.h"
 #include "Engine/Cache.h"
+#include "Engine/Hash64.h"
 #include "Engine/Image.h"
 #include "Engine/Log.h"
 #include "Engine/Lut.h"
 #include "Engine/MemoryFile.h"
 #include "Engine/MemoryInfo.h" // printAsRAM
 #include "Engine/Node.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/OfxEffectInstance.h"
 #include "Engine/OpenGLViewerI.h"
 #include "Engine/OutputSchedulerThread.h"
@@ -153,6 +156,55 @@ ViewerInstance::lutFromColorspace(ViewerColorSpaceEnum cs)
     }
 
     return lut;
+}
+
+/**
+ * @brief The OCIO transform for the viewer's display/view (empty names: the config's defaults),
+ * or NULL if there is no usable config, display or view. The error is reported once per message.
+ **/
+static OCIOViewerProcessorPtr
+getOCIOProcessor(std::string display,
+                 std::string view)
+{
+    if ( display.empty() ) {
+        display = OCIOViewerProcess::getDefaultDisplay();
+    }
+    if ( view.empty() ) {
+        view = OCIOViewerProcess::getDefaultView(display);
+    }
+    std::string error;
+    OCIOViewerProcessorPtr ret = OCIOViewerProcess::getProcessor(display, view, &error);
+    if (!ret) {
+        static QMutex lastErrorMutex;
+        static std::string lastError;
+        QMutexLocker k(&lastErrorMutex);
+        if (error != lastError) {
+            lastError = error;
+            qDebug() << "Viewer: cannot use OpenColorIO display" << display.c_str() << "view" << view.c_str() << ":" << error.c_str();
+        }
+    }
+
+    return ret;
+}
+
+/**
+ * @brief The hash identifying the viewer's rendered tiles in the cache: the OCIO transform changes the
+ * pixels of 8-bit textures, so it is folded into the viewer hash rather than stored in FrameKey
+ * (which keeps the cache format unchanged).
+ **/
+static U64
+getFrameKeyViewerHash(U64 viewerHash,
+                      const UpdateViewerParams& params)
+{
+    if (!params.ocioProcessor) {
+        return viewerHash;
+    }
+    Hash64 hash;
+    hash.append(viewerHash);
+    Hash64_appendQString( &hash, QString::fromUtf8( params.ocioProcessor->getCacheID().c_str() ) );
+    hash.computeHash();
+
+    return hash.value();
 }
 
 EffectInstance*
@@ -927,6 +979,7 @@ ViewerInstance::setupMinimalUpdateViewerParams(const SequenceTime time,
     outArgs->params->textureIndex = textureIndex;
 
     // These are the user settings from the viewer UI
+    std::string ocioDisplay, ocioView;
     {
         QMutexLocker locker(&_imp->viewerParamsMutex);
         outArgs->autoContrast = _imp->viewerParamsAutoContrast;
@@ -938,6 +991,15 @@ ViewerInstance::setupMinimalUpdateViewerParams(const SequenceTime time,
         outArgs->params->alphaLayer = _imp->viewerParamsAlphaLayer;
         outArgs->params->alphaChannelName = _imp->viewerParamsAlphaChannelName;
         outArgs->isDoingPartialUpdates = _imp->isDoingPartialUpdates;
+        ocioDisplay = _imp->viewerParamsOCIODisplay;
+        ocioView = _imp->viewerParamsOCIOView;
+    }
+    if (outArgs->params->lut == eViewerColorSpaceOCIO) {
+        outArgs->params->ocioProcessor = getOCIOProcessor(ocioDisplay, ocioView);
+        if (!outArgs->params->ocioProcessor) {
+            // no usable OCIO config/display/view: show the image with the default sRGB LUT
+            outArgs->params->lut = eViewerColorSpaceSRGB;
+        }
     }
 
     // Fill the gamma LUT if it has never been filled yet
@@ -1075,7 +1137,7 @@ ViewerInstance::getViewerRoIAndTexture(const RectD& rod,
         for (std::list<UpdateViewerParams::CachedTile>::iterator it = outArgs->params->tiles.begin(); it != outArgs->params->tiles.end(); ++it) {
             FrameKey key(getNode().get(),
                          outArgs->params->time,
-                         viewerHash,
+                         getFrameKeyViewerHash(viewerHash, *outArgs->params),
                          outArgs->params->gain,
                          outArgs->params->gamma,
                          outArgs->params->lut,
@@ -1739,7 +1801,7 @@ ViewerInstance::renderViewer_internal(ViewIdx view,
 
                     FrameKey key(getNode().get(),
                                  inArgs.params->time,
-                                 viewerHash,
+                                 getFrameKeyViewerHash(viewerHash, *inArgs.params),
                                  inArgs.params->gain,
                                  inArgs.params->gamma,
                                  inArgs.params->lut,
@@ -1845,7 +1907,8 @@ ViewerInstance::renderViewer_internal(ViewIdx view,
                                         lutFromColorspace(updateParams->lut),
                                         alphaChannelIndex,
                                         viewerRenderRoiOnly,
-                                        tileRowElements);
+                                        tileRowElements,
+                                        updateParams->ocioProcessor);
             QReadLocker k(&_imp->gammaLookupMutex);
             for (std::list<UpdateViewerParams::CachedTile>::iterator it = unCachedTiles.begin(); it != unCachedTiles.end(); ++it) {
                 renderFunctor(viewerRenderRoI,
@@ -1912,7 +1975,8 @@ ViewerInstance::renderViewer_internal(ViewIdx view,
                                         lutFromColorspace(updateParams->lut),
                                         alphaChannelIndex,
                                         viewerRenderRoiOnly,
-                                        tileRowElements);
+                                        tileRowElements,
+                                        updateParams->ocioProcessor);
 
             if (runInCurrentThread) {
                 QReadLocker k(&_imp->gammaLookupMutex);
@@ -2156,11 +2220,132 @@ scaleToTexture8bits_generic(const RectI& roi,
         matteAcc = std::make_shared<Image::ReadAccess>( args.matteImage.get() );
     }
 
+    // Reads pixel "index" of the current row as linear float RGB (+ alpha), as the viewer has always done.
+    auto fetchLinear = [&](int index,
+                           double& rOut,
+                           double& gOut,
+                           double& bOut,
+                           double& aOut,
+                           int& uAOut) {
+        double r = 0.;
+        double g = 0.;
+        double b = 0.;
+        int uA = 0;
+        double a = 0;
+        if (nComps >= 4) {
+            r = (src_pixels ? src_pixels[index * nComps + rOffset] : 0.);
+            g = (src_pixels ? src_pixels[index * nComps + gOffset] : 0.);
+            b = (src_pixels ? src_pixels[index * nComps + bOffset] : 0.);
+            if (opaque) {
+                a = 1;
+                uA = 255;
+            } else {
+                a = src_pixels ? src_pixels[index * nComps + 3] : 0;
+                uA = Color::floatToInt<256>(a);
+            }
+        } else if (nComps == 3) {
+            // coverity[dead_error_line]
+            r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
+            // coverity[dead_error_line]
+            g = (src_pixels && gOffset < nComps) ? src_pixels[index * nComps + gOffset] : 0.;
+            // coverity[dead_error_line]
+            b = (src_pixels && bOffset < nComps) ? src_pixels[index * nComps + bOffset] : 0.;
+            a = (src_pixels ? 1 : 0);
+            uA = a * 255;
+        } else if (nComps == 2) {
+            // coverity[dead_error_line]
+            r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
+            // coverity[dead_error_line]
+            g = (src_pixels && gOffset < nComps) ? src_pixels[index * nComps + gOffset] : 0.;
+            b = 0;
+            a = (src_pixels ? 1 : 0);
+            uA = a * 255;
+        } else if (nComps == 1) {
+            // coverity[dead_error_line]
+            r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
+            g = b = r;
+            a = (src_pixels ? 1 : 0);
+            uA = a * 255;
+        } else {
+            assert(false);
+        }
+
+
+        switch (pixelSize) {
+        case sizeof(unsigned char):     //byte
+            if (args.srcColorSpace) {
+                r = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)r );
+                g = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)g );
+                b = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)b );
+            } else {
+                r = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)r );
+                g = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)g );
+                b = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)b );
+            }
+            break;
+        case sizeof(unsigned short):     //short
+            if (args.srcColorSpace) {
+                r = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)r );
+                g = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)g );
+                b = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)b );
+            } else {
+                r = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)r );
+                g = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)g );
+                b = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)b );
+            }
+            break;
+        case sizeof(float):     //float
+            if (args.srcColorSpace) {
+                r = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(r);
+                g = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(g);
+                b = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(b);
+            }
+            break;
+        default:
+            break;
+        }
+        rOut = r;
+        gOut = g;
+        bOut = b;
+        aOut = a;
+        uAOut = uA;
+    };
+
+    // With an OCIO display/view, each row is first converted to linear float and transformed in one call.
+    const OCIOViewerProcessor* ocio = args.ocioProcessor.get();
+    std::vector<float> ocioRow;
+    std::vector<int> ocioAlpha;
+    if (ocio) {
+        ocioRow.resize( (std::size_t)(x2 - x1) * 4 );
+        ocioAlpha.resize(x2 - x1);
+    }
+
     for (int y = y1; y < y2;
          ++y,
          dst_pixels += dstRowElements) {
         // coverity[dont_call]
         int start = (int)( rand() % (x2 - x1) );
+
+        if (ocio) {
+            for (int i = 0; i < x2 - x1; ++i) {
+                double r, g, b, a;
+                fetchLinear(i, r, g, b, a, ocioAlpha[i]);
+                r = r * args.gain + args.offset;
+                g = g * args.gain + args.offset;
+                b = b * args.gain + args.offset;
+                if (luminance) {
+                    r = 0.299 * r + 0.587 * g + 0.114 * b;
+                    g = r;
+                    b = r;
+                }
+                float* p = &ocioRow[i * 4];
+                p[0] = (float)r;
+                p[1] = (float)g;
+                p[2] = (float)b;
+                p[3] = (float)a;
+            }
+            ocio->applyRGBA(&ocioRow[0], x2 - x1);
+        }
 
 
         for (int backward = 0; backward < 2; ++backward) {
@@ -2176,115 +2361,66 @@ scaleToTexture8bits_generic(const RectI& roi,
                 double r = 0.;
                 double g = 0.;
                 double b = 0.;
+                double a = 0.;
                 int uA = 0;
-                double a = 0;
-                if (nComps >= 4) {
-                    r = (src_pixels ? src_pixels[index * nComps + rOffset] : 0.);
-                    g = (src_pixels ? src_pixels[index * nComps + gOffset] : 0.);
-                    b = (src_pixels ? src_pixels[index * nComps + bOffset] : 0.);
-                    if (opaque) {
-                        a = 1;
-                        uA = 255;
-                    } else {
-                        a = src_pixels ? src_pixels[index * nComps + 3] : 0;
-                        uA = Color::floatToInt<256>(a);
-                    }
-                } else if (nComps == 3) {
-                    // coverity[dead_error_line]
-                    r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
-                    // coverity[dead_error_line]
-                    g = (src_pixels && gOffset < nComps) ? src_pixels[index * nComps + gOffset] : 0.;
-                    // coverity[dead_error_line]
-                    b = (src_pixels && bOffset < nComps) ? src_pixels[index * nComps + bOffset] : 0.;
-                    a = (src_pixels ? 1 : 0);
-                    uA = a * 255;
-                } else if (nComps == 2) {
-                    // coverity[dead_error_line]
-                    r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
-                    // coverity[dead_error_line]
-                    g = (src_pixels && gOffset < nComps) ? src_pixels[index * nComps + gOffset] : 0.;
-                    b = 0;
-                    a = (src_pixels ? 1 : 0);
-                    uA = a * 255;
-                } else if (nComps == 1) {
-                    // coverity[dead_error_line]
-                    r = (src_pixels && rOffset < nComps) ? src_pixels[index * nComps + rOffset] : 0.;
-                    g = b = r;
-                    a = (src_pixels ? 1 : 0);
-                    uA = a * 255;
-                } else {
-                    assert(false);
-                }
-
-
-                switch (pixelSize) {
-                case sizeof(unsigned char):     //byte
-                    if (args.srcColorSpace) {
-                        r = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)r );
-                        g = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)g );
-                        b = args.srcColorSpace->fromColorSpaceUint8ToLinearFloatFast( (unsigned char)b );
-                    } else {
-                        r = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)r );
-                        g = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)g );
-                        b = (double)Image::convertPixelDepth<unsigned char, float>( (unsigned char)b );
-                    }
-                    break;
-                case sizeof(unsigned short):     //short
-                    if (args.srcColorSpace) {
-                        r = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)r );
-                        g = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)g );
-                        b = args.srcColorSpace->fromColorSpaceUint16ToLinearFloatFast( (unsigned short)b );
-                    } else {
-                        r = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)r );
-                        g = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)g );
-                        b = (double)Image::convertPixelDepth<unsigned short, float>( (unsigned char)b );
-                    }
-                    break;
-                case sizeof(float):     //float
-                    if (args.srcColorSpace) {
-                        r = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(r);
-                        g = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(g);
-                        b = args.srcColorSpace->fromColorSpaceFloatToLinearFloat(b);
-                    }
-                    break;
-                default:
-                    break;
-                }
-
-                r = r * args.gain + args.offset;
-                g = g * args.gain + args.offset;
-                b = b * args.gain + args.offset;
-                if  (args.gamma <= 0) {
-                    r = (r < 1.) ? 0. : (r == 1. ? 1. : std::numeric_limits<double>::infinity() );
-                    g = (g < 1.) ? 0. : (g == 1. ? 1. : std::numeric_limits<double>::infinity() );
-                    b = (b < 1.) ? 0. : (b == 1. ? 1. : std::numeric_limits<double>::infinity() );
-                } else if (args.gamma != 1.) {
-                    r = viewer->interpolateGammaLut(r);
-                    g = viewer->interpolateGammaLut(g);
-                    b = viewer->interpolateGammaLut(b);
-                }
-
-
-                if (luminance) {
-                    r = 0.299 * r + 0.587 * g + 0.114 * b;
-                    g = r;
-                    b = r;
-                }
-
-
                 U8 uR, uG, uB;
-                if (!args.colorSpace) {
+                if (ocio) {
+                    // display-referred values from OCIO; the viewer gamma applies after the display transform
+                    const float* p = &ocioRow[index * 4];
+                    r = p[0];
+                    g = p[1];
+                    b = p[2];
+                    a = p[3];
+                    uA = ocioAlpha[index];
+                    if  (args.gamma <= 0) {
+                        r = (r < 1.) ? 0. : (r == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                        g = (g < 1.) ? 0. : (g == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                        b = (b < 1.) ? 0. : (b == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                    } else if (args.gamma != 1.) {
+                        r = viewer->interpolateGammaLut(r);
+                        g = viewer->interpolateGammaLut(g);
+                        b = viewer->interpolateGammaLut(b);
+                    }
                     uR = Color::floatToInt<256>(r);
                     uG = Color::floatToInt<256>(g);
                     uB = Color::floatToInt<256>(b);
                 } else {
-                    error_r = (error_r & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(r);
-                    error_g = (error_g & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(g);
-                    error_b = (error_b & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(b);
-                    assert(error_r < 0x10000 && error_g < 0x10000 && error_b < 0x10000);
-                    uR = (U8)(error_r >> 8);
-                    uG = (U8)(error_g >> 8);
-                    uB = (U8)(error_b >> 8);
+                    fetchLinear(index, r, g, b, a, uA);
+
+                    r = r * args.gain + args.offset;
+                    g = g * args.gain + args.offset;
+                    b = b * args.gain + args.offset;
+                    if  (args.gamma <= 0) {
+                        r = (r < 1.) ? 0. : (r == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                        g = (g < 1.) ? 0. : (g == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                        b = (b < 1.) ? 0. : (b == 1. ? 1. : std::numeric_limits<double>::infinity() );
+                    } else if (args.gamma != 1.) {
+                        r = viewer->interpolateGammaLut(r);
+                        g = viewer->interpolateGammaLut(g);
+                        b = viewer->interpolateGammaLut(b);
+                    }
+
+
+                    if (luminance) {
+                        r = 0.299 * r + 0.587 * g + 0.114 * b;
+                        g = r;
+                        b = r;
+                    }
+
+
+                    if (!args.colorSpace) {
+                        uR = Color::floatToInt<256>(r);
+                        uG = Color::floatToInt<256>(g);
+                        uB = Color::floatToInt<256>(b);
+                    } else {
+                        error_r = (error_r & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(r);
+                        error_g = (error_g & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(g);
+                        error_b = (error_b & 0xff) + args.colorSpace->toColorSpaceUint8xxFromLinearFloatFast(b);
+                        assert(error_r < 0x10000 && error_g < 0x10000 && error_b < 0x10000);
+                        uR = (U8)(error_r >> 8);
+                        uG = (U8)(error_g >> 8);
+                        uB = (U8)(error_b >> 8);
+                    }
                 }
 
                 if (applyMatte) {
@@ -3080,6 +3216,44 @@ ViewerInstance::onColorSpaceChanged(ViewerColorSpaceEnum colorspace)
     } else {
         _imp->uiContext->redraw();
     }
+}
+
+void
+ViewerInstance::setOCIODisplayView(const std::string& display,
+                                   const std::string& view)
+{
+    // always running in the main thread
+    assert( qApp && qApp->thread() == QThread::currentThread() );
+
+    {
+        QMutexLocker l(&_imp->viewerParamsMutex);
+        if ( (_imp->viewerParamsOCIODisplay == display) && (_imp->viewerParamsOCIOView == view) ) {
+            return;
+        }
+        _imp->viewerParamsOCIODisplay = display;
+        _imp->viewerParamsOCIOView = view;
+        if (_imp->viewerParamsLut != eViewerColorSpaceOCIO) {
+            return;
+        }
+    }
+    // same update as onColorSpaceChanged()
+    assert(_imp->uiContext);
+    if ( ( (_imp->uiContext->getBitDepth() == eImageBitDepthByte) )
+         && !getApp()->getProject()->isLoadingProject() ) {
+        renderCurrentFrame(true);
+    } else {
+        _imp->uiContext->redraw();
+    }
+}
+
+void
+ViewerInstance::getOCIODisplayView(std::string* display,
+                                   std::string* view) const
+{
+    QMutexLocker l(&_imp->viewerParamsMutex);
+
+    *display = _imp->viewerParamsOCIODisplay;
+    *view = _imp->viewerParamsOCIOView;
 }
 
 void

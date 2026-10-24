@@ -93,6 +93,10 @@ ViewerTab::getColorSpace() const
 
         return "BT1886";
         break;
+    case eViewerColorSpaceOCIO:
+
+        return "OCIO";
+        break;
     default:
         return "";
         break;
@@ -156,6 +160,22 @@ ViewerTab::setColorSpace(const std::string & colorSpaceName)
     if (index != -1) {
         _imp->viewerColorSpace->setCurrentIndex(index);
     }
+}
+
+void
+ViewerTab::setOCIODisplayView(const std::string& display,
+                              const std::string& view)
+{
+    // set the display/view first, so that switching to OCIO renders only once
+    _imp->viewerNode->setOCIODisplayView(display, view);
+    setColorSpace("OCIO");
+}
+
+void
+ViewerTab::getOCIODisplayView(std::string* display,
+                              std::string* view) const
+{
+    _imp->viewerNode->getOCIODisplayView(display, view);
 }
 
 void

@@ -138,6 +138,11 @@ public:
 
     void setColorSpace(const std::string & colorSpaceName);
 
+    /// Shows the viewer through an OpenColorIO display/view (empty: the config's defaults).
+    void setOCIODisplayView(const std::string& display, const std::string& view);
+
+    void getOCIODisplayView(std::string* display, std::string* view) const;
+
     void setGain(double d);
 
     double getGain() const;

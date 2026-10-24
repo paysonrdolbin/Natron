@@ -35,6 +35,7 @@
 #include "Global/Enums.h"
 
 #include "Engine/BufferableObject.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/RectD.h"
 #include "Engine/RectI.h"
 #include "Engine/TextureRect.h"
@@ -124,6 +125,7 @@ public:
     double offset; // viewer offset
     unsigned int mipmapLevel; // viewer mipmaplevel
     ViewerColorSpaceEnum lut; // the viewer colorspace lut
+    OCIOViewerProcessorPtr ocioProcessor; // the OCIO display/view transform when lut is eViewerColorSpaceOCIO
     ImagePlaneDesc layer; // the image layer
     ImagePlaneDesc alphaLayer; // the alpha layer
     std::string alphaChannelName; // the alpha channel name

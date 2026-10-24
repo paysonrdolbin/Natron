@@ -442,7 +442,8 @@ enum ViewerColorSpaceEnum
     eViewerColorSpaceSRGB = 0,
     eViewerColorSpaceLinear,
     eViewerColorSpaceRec709,
-    eViewerColorSpaceBT1886
+    eViewerColorSpaceBT1886,
+    eViewerColorSpaceOCIO // OpenColorIO display/view (see ViewerInstance::setOCIODisplayView())
 };
 
 enum ImageBitDepthEnum

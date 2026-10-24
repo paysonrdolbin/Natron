@@ -78,6 +78,8 @@ ViewerTab::onColorSpaceComboBoxChanged(int v)
         colorspace = eViewerColorSpaceRec709;
     } else if (v == 3) {
         colorspace = eViewerColorSpaceBT1886;
+    } else if (v == 4) {
+        colorspace = eViewerColorSpaceOCIO;
     } else {
         assert(false);
         throw std::logic_error("ViewerTab::onColorSpaceComboBoxChanged(): unknown colorspace");

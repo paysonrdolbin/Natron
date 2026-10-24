@@ -825,6 +825,40 @@ PyViewer::getChannels() const
 }
 
 void
+PyViewer::setOCIODisplayView(const QString& display,
+                             const QString& view)
+{
+    if ( !getInternalNode()->isActivated() ) {
+        return;
+    }
+    _viewer->setOCIODisplayView( display.toStdString(), view.toStdString() );
+}
+
+QString
+PyViewer::getOCIODisplay() const
+{
+    if ( !getInternalNode()->isActivated() ) {
+        return QString();
+    }
+    std::string display, view;
+    _viewer->getOCIODisplayView(&display, &view);
+
+    return QString::fromUtf8( display.c_str() );
+}
+
+QString
+PyViewer::getOCIOView() const
+{
+    if ( !getInternalNode()->isActivated() ) {
+        return QString();
+    }
+    std::string display, view;
+    _viewer->getOCIODisplayView(&display, &view);
+
+    return QString::fromUtf8( view.c_str() );
+}
+
+void
 PyViewer::setProxyModeEnabled(bool enabled)
 {
     if ( !getInternalNode()->isActivated() ) {

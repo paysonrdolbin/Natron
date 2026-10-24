@@ -94,6 +94,12 @@ public:
 
     Natron::DisplayChannelsEnum getChannels() const;
 
+    void setOCIODisplayView(const QString& display, const QString& view);
+
+    QString getOCIODisplay() const;
+
+    QString getOCIOView() const;
+
     void setProxyModeEnabled(bool enabled);
 
     bool isProxyModeEnabled() const;

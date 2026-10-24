@@ -47,6 +47,7 @@
 #include "Engine/OutputSchedulerThread.h"
 #include "Engine/ImagePlaneDesc.h"
 #include "Engine/FrameEntry.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/Settings.h"
 #include "Engine/Image.h"
 #include "Engine/TextureRect.h"
@@ -83,7 +84,8 @@ struct RenderViewerArgs
                      const Color::Lut* colorSpace_,
                      int alphaChannelIndex_,
                      bool renderOnlyRoI_,
-                     std::size_t tileRowElements_)
+                     std::size_t tileRowElements_,
+                     const OCIOViewerProcessorPtr& ocioProcessor_ = OCIOViewerProcessorPtr())
         : inputImage(inputImage_)
         , matteImage(matteImage_)
         , channels(channels_)
@@ -97,6 +99,7 @@ struct RenderViewerArgs
         , alphaChannelIndex(alphaChannelIndex_)
         , renderOnlyRoI(renderOnlyRoI_)
         , tileRowElements(tileRowElements_)
+        , ocioProcessor(ocioProcessor_)
     {
     }
 
@@ -113,6 +116,7 @@ struct RenderViewerArgs
     int alphaChannelIndex;
     bool renderOnlyRoI;
     std::size_t tileRowElements;
+    OCIOViewerProcessorPtr ocioProcessor; // if set, replaces colorSpace (8-bit textures only)
 };
 
 struct ViewerInstance::ViewerInstancePrivate
@@ -382,6 +386,8 @@ public:
     double viewerParamsGamma;          /*!< Current gamma setting in the GUI. Not affected by autoContrast. */
     ViewerColorSpaceEnum viewerParamsLut; /*!< a value coding the current color-space used to render.
                                                  0 = sRGB ,  1 = linear , 2 = Rec 709*/
+    std::string viewerParamsOCIODisplay; //< OCIO display used when viewerParamsLut is eViewerColorSpaceOCIO (empty: the config's default)
+    std::string viewerParamsOCIOView; //< OCIO view used when viewerParamsLut is eViewerColorSpaceOCIO (empty: the display's default)
     bool viewerParamsAutoContrast;
     DisplayChannelsEnum viewerParamsChannels[2];
     ImagePlaneDesc viewerParamsLayer;
