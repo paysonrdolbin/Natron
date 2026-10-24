@@ -372,6 +372,8 @@ loadNodeGuiSerialization(Gui* gui,
             ViewerTab* tab = gui->getApp()->getGui()->getViewerTabForInstance(viewer);
             tab->setProjection(found->second.zoomLeft, found->second.zoomBottom, found->second.zoomFactor, 1.);
             tab->setChannels(found->second.channels);
+            // the OCIO display/view first, so that an "OCIO" color space renders only once
+            tab->setOCIODisplayView(found->second.ocioDisplay, found->second.ocioView);
             tab->setColorSpace(found->second.colorSpace);
             tab->setGain(found->second.gain);
             tab->setGamma(found->second.gamma);

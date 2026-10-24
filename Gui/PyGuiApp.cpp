@@ -831,7 +831,9 @@ PyViewer::setOCIODisplayView(const QString& display,
     if ( !getInternalNode()->isActivated() ) {
         return;
     }
+    // set the display/view first, so that switching to OCIO renders only once
     _viewer->setOCIODisplayView( display.toStdString(), view.toStdString() );
+    _viewer->setColorSpace("OCIO");
 }
 
 QString

@@ -101,6 +101,7 @@ ProjectGuiSerialization::initialize(const ProjectGui* projectGui)
                         viewerData.gain = tab->getGain();
                         viewerData.gamma = tab->getGamma();
                         viewerData.colorSpace = tab->getColorSpace();
+                        tab->getOCIODisplayView(&viewerData.ocioDisplay, &viewerData.ocioView);
                         viewerData.channels = tab->getChannelsString();
                         viewerData.renderScaleActivated = tab->getRenderScaleActivated();
                         viewerData.mipmapLevel = tab->getMipmapLevel();

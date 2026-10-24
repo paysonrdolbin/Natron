@@ -26,6 +26,7 @@
 #include "ViewerTab.h"
 #include "ViewerTabPrivate.h"
 
+#include <algorithm> // find
 #include <cassert>
 #include <stdexcept>
 #include <QDebug>
@@ -39,6 +40,7 @@ GCC_DIAG_UNUSED_PRIVATE_FIELD_ON
 
 #include "Engine/Node.h"
 #include "Engine/NodeGroup.h"
+#include "Engine/OCIOViewerProcess.h"
 #include "Engine/OutputSchedulerThread.h" // RenderEngine
 #include "Engine/Settings.h"
 #include "Engine/TimeLine.h"
@@ -86,6 +88,73 @@ ViewerTab::onColorSpaceComboBoxChanged(int v)
     }
     _imp->viewer->setLut( (int)colorspace );
     _imp->viewerNode->onColorSpaceChanged(colorspace);
+    refreshOCIOMenus();
+}
+
+void
+ViewerTab::refreshOCIOMenus()
+{
+    if (!_imp->viewerOCIODisplay) {
+        return;
+    }
+    const bool visible = ( _imp->viewerNode->getLutType() == (int)eViewerColorSpaceOCIO );
+    _imp->viewerOCIODisplay->setVisible(visible);
+    _imp->viewerOCIOView->setVisible(visible);
+    if (!visible) {
+        return;
+    }
+
+    std::string display, view;
+    _imp->viewerNode->getOCIODisplayView(&display, &view);
+    std::vector<std::string> displays = OCIOViewerProcess::getDisplays();
+    if ( displays.empty() ) {
+        // no usable config (the viewer falls back to sRGB)
+        _imp->viewerOCIODisplay->clear();
+        _imp->viewerOCIODisplay->addItem( tr("(no OCIO config)") );
+        _imp->viewerOCIODisplay->setCurrentIndex_no_emit(0);
+        _imp->viewerOCIOView->clear();
+        _imp->viewerOCIODisplay->setEnabled(false);
+        _imp->viewerOCIOView->setEnabled(false);
+
+        return;
+    }
+    _imp->viewerOCIODisplay->setEnabled(true);
+    _imp->viewerOCIOView->setEnabled(true);
+    if ( display.empty() || ( std::find(displays.begin(), displays.end(), display) == displays.end() ) ) {
+        display = OCIOViewerProcess::getDefaultDisplay();
+    }
+    std::vector<std::string> views = OCIOViewerProcess::getViews(display);
+    if ( view.empty() || ( std::find(views.begin(), views.end(), view) == views.end() ) ) {
+        view = OCIOViewerProcess::getDefaultView(display);
+    }
+
+    _imp->viewerOCIODisplay->clear();
+    for (std::size_t i = 0; i < displays.size(); ++i) {
+        _imp->viewerOCIODisplay->addItem( QString::fromUtf8( displays[i].c_str() ) );
+    }
+    _imp->viewerOCIODisplay->setCurrentText_no_emit( QString::fromUtf8( display.c_str() ) );
+    _imp->viewerOCIOView->clear();
+    for (std::size_t i = 0; i < views.size(); ++i) {
+        _imp->viewerOCIOView->addItem( QString::fromUtf8( views[i].c_str() ) );
+    }
+    _imp->viewerOCIOView->setCurrentText_no_emit( QString::fromUtf8( view.c_str() ) );
+}
+
+void
+ViewerTab::onOCIODisplayComboBoxChanged(int /*v*/)
+{
+    // a new display: use its default view
+    const std::string display = _imp->viewerOCIODisplay->getCurrentIndexText().toStdString();
+
+    _imp->viewerNode->setOCIODisplayView( display, OCIOViewerProcess::getDefaultView(display) );
+    refreshOCIOMenus();
+}
+
+void
+ViewerTab::onOCIOViewComboBoxChanged(int /*v*/)
+{
+    _imp->viewerNode->setOCIODisplayView( _imp->viewerOCIODisplay->getCurrentIndexText().toStdString(),
+                                          _imp->viewerOCIOView->getCurrentIndexText().toStdString() );
 }
 
 void

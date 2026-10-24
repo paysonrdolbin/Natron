@@ -114,6 +114,8 @@ struct ViewerTabPrivate
     Button* toggleGammaButton;
     ScaleSliderQWidget* gammaSlider;
     ComboBox* viewerColorSpace;
+    ComboBox* viewerOCIODisplay; // OCIO display, shown when viewerColorSpace is "OCIO" (NULL without OCIO support)
+    ComboBox* viewerOCIOView; // OCIO view of viewerOCIODisplay
     Button* checkerboardButton;
     Button* pickerButton;
     ComboBox* viewsComboBox;

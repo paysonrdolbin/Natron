@@ -96,6 +96,8 @@ ViewerTabPrivate::ViewerTabPrivate(ViewerTab* publicInterface,
     , toggleGammaButton(NULL)
     , gammaSlider(NULL)
     , viewerColorSpace(NULL)
+    , viewerOCIODisplay(NULL)
+    , viewerOCIOView(NULL)
     , checkerboardButton(NULL)
     , pickerButton(NULL)
     , viewsComboBox(NULL)

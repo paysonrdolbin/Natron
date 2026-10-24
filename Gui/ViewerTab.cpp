@@ -509,6 +509,19 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
     if ( OCIOViewerProcess::isAvailable() ) {
         // the OpenColorIO display/view of the viewer (see ViewerTab::setOCIODisplayView())
         _imp->viewerColorSpace->addItem( QString::fromUtf8("OCIO") );
+
+        _imp->viewerOCIODisplay = new ComboBox(_imp->secondSettingsRow);
+        _imp->viewerOCIODisplay->setToolTip( QString::fromUtf8( "<p><b>") + tr("OpenColorIO display:") + QString::fromUtf8("</b></p><p>") + tr(
+                                                 "The display device the image is viewed on, from the OpenColorIO configuration "
+                                                 "selected in the Preferences (Color Management).") + QString::fromUtf8("</p>") );
+        _imp->secondRowLayout->addWidget(_imp->viewerOCIODisplay);
+        _imp->viewerOCIOView = new ComboBox(_imp->secondSettingsRow);
+        _imp->viewerOCIOView->setToolTip( QString::fromUtf8( "<p><b>") + tr("OpenColorIO view:") + QString::fromUtf8("</b></p><p>") + tr(
+                                              "The view transform applied for the display, e.g. an ACES output transform. "
+                                              "The image is taken to be in the scene_linear role of the configuration.") + QString::fromUtf8("</p>") );
+        _imp->secondRowLayout->addWidget(_imp->viewerOCIOView);
+        _imp->viewerOCIODisplay->hide();
+        _imp->viewerOCIOView->hide();
     }
     _imp->viewerColorSpace->setCurrentIndex(1);
 
@@ -1043,6 +1056,12 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
     }
     QObject::connect( _imp->viewerColorSpace, SIGNAL(currentIndexChanged(int)), this,
                       SLOT(onColorSpaceComboBoxChanged(int)) );
+    if (_imp->viewerOCIODisplay) {
+        QObject::connect( _imp->viewerOCIODisplay, SIGNAL(currentIndexChanged(int)), this,
+                          SLOT(onOCIODisplayComboBoxChanged(int)) );
+        QObject::connect( _imp->viewerOCIOView, SIGNAL(currentIndexChanged(int)), this,
+                          SLOT(onOCIOViewComboBoxChanged(int)) );
+    }
     QObject::connect( _imp->zoomCombobox, SIGNAL(currentIndexChanged(int)), this, SLOT(onZoomComboboxCurrentIndexChanged(int)) );
     QObject::connect( _imp->viewer, SIGNAL(zoomChanged(int)), this, SLOT(updateZoomComboBox(int)) );
     QObject::connect( _imp->gainBox, SIGNAL(valueChanged(double)), this, SLOT(onGainSpinBoxValueChanged(double)) );

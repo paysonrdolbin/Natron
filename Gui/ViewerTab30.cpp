@@ -166,9 +166,8 @@ void
 ViewerTab::setOCIODisplayView(const std::string& display,
                               const std::string& view)
 {
-    // set the display/view first, so that switching to OCIO renders only once
     _imp->viewerNode->setOCIODisplayView(display, view);
-    setColorSpace("OCIO");
+    refreshOCIOMenus();
 }
 
 void

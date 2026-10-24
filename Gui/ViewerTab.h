@@ -138,7 +138,8 @@ public:
 
     void setColorSpace(const std::string & colorSpaceName);
 
-    /// Shows the viewer through an OpenColorIO display/view (empty: the config's defaults).
+    /// The OpenColorIO display/view used when the color space is "OCIO" (empty: the config's defaults).
+    /// Does not change the color space (see setColorSpace()).
     void setOCIODisplayView(const std::string& display, const std::string& view);
 
     void getOCIODisplayView(std::string* display, std::string* view) const;
@@ -359,6 +360,10 @@ public Q_SLOTS:
 
     void onColorSpaceComboBoxChanged(int v);
 
+    void onOCIODisplayComboBoxChanged(int v);
+
+    void onOCIOViewComboBoxChanged(int v);
+
     void onCompositingOperatorIndexChanged(int index);
 
     void onFirstInputNameChanged(const QString & text);
@@ -456,6 +461,10 @@ public Q_SLOTS:
 private:
 
     void abortViewersAndRefresh();
+
+    /// Fills the OCIO Display/View menus from the current config and the viewer's display/view,
+    /// and shows them only when the color space is "OCIO".
+    void refreshOCIOMenus();
 
     void refreshFPSBoxFromClipPreferences();
 
