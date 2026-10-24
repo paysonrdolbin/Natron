@@ -97,6 +97,10 @@ public:
     /// Name of the loaded config (empty if none).
     static std::string getConfigName();
 
+    /// True if the current config is one built into OpenColorIO (an "ocio://..." URI), e.g. the ACES
+    /// configs offered in the Preferences. New viewers then start on its default display/view.
+    static bool isBuiltinConfig();
+
     static std::vector<std::string> getDisplays();
     static std::string getDefaultDisplay();
     static std::vector<std::string> getViews(const std::string& display);

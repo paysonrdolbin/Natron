@@ -1113,6 +1113,13 @@ ViewerTab::ViewerTab(const std::list<NodeGuiPtr> & existingNodesContext,
 
     _imp->viewerNode->setUiContext( getViewer() );
 
+    if ( _imp->viewerOCIODisplay && OCIOViewerProcess::isBuiltinConfig() ) {
+        // With an OpenColorIO built-in (ACES) config, new viewers show its default display/view rather
+        // than the sRGB LUT (a project being loaded then restores its own viewer settings).
+        // After setUiContext(): the viewer node needs it to update.
+        setColorSpace("OCIO");
+    }
+
     refreshLayerAndAlphaChannelComboBox();
 
     QTimer::singleShot( 25, _imp->timeLineGui, SLOT(recenterOnBounds()) );

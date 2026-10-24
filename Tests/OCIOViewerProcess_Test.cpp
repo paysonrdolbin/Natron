@@ -82,6 +82,8 @@ TEST(OCIOViewerProcess, ListsACES2DisplaysAndViews)
     ASSERT_TRUE( OCIOViewerProcess::loadCurrentConfig(&error) ) << error;
     EXPECT_EQ( std::string("studio-config-v4.0.0_aces-v2.0_ocio-v2.5"), OCIOViewerProcess::getConfigName() );
 
+    EXPECT_TRUE( OCIOViewerProcess::isBuiltinConfig() );
+
     std::vector<std::string> displays = OCIOViewerProcess::getDisplays();
     EXPECT_NE( displays.end(), std::find(displays.begin(), displays.end(), kDisplay) );
     EXPECT_EQ( kDisplay, OCIOViewerProcess::getDefaultDisplay() );
@@ -162,6 +164,7 @@ TEST(OCIOViewerProcess, BadConfigAndView)
         std::string error;
         EXPECT_FALSE( OCIOViewerProcess::loadCurrentConfig(&error) );
         EXPECT_FALSE( error.empty() );
+        EXPECT_FALSE( OCIOViewerProcess::isBuiltinConfig() );
         EXPECT_TRUE( OCIOViewerProcess::getDisplays().empty() );
         EXPECT_FALSE( bool( OCIOViewerProcess::getProcessor(kDisplay, kView) ) );
     }
@@ -180,6 +183,7 @@ TEST(OCIOViewerProcess, BadConfigAndView)
 TEST(OCIOViewerProcess, NotAvailable)
 {
     EXPECT_FALSE( OCIOViewerProcess::isAvailable() );
+    EXPECT_FALSE( OCIOViewerProcess::isBuiltinConfig() );
     EXPECT_TRUE( OCIOViewerProcess::getDisplays().empty() );
     EXPECT_FALSE( bool( OCIOViewerProcess::getProcessor("sRGB", "Raw") ) );
 }

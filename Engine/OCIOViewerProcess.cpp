@@ -199,6 +199,14 @@ OCIOViewerProcess::getConfigName()
     return state().config->getName();
 }
 
+bool
+OCIOViewerProcess::isBuiltinConfig()
+{
+    QMutexLocker k(&state().mutex);
+
+    return loadCurrentConfigLocked(0) && (state().configPath.compare(0, 7, "ocio://") == 0);
+}
+
 std::vector<std::string>
 OCIOViewerProcess::getDisplays()
 {
@@ -315,6 +323,12 @@ std::string
 OCIOViewerProcess::getConfigName()
 {
     return std::string();
+}
+
+bool
+OCIOViewerProcess::isBuiltinConfig()
+{
+    return false;
 }
 
 std::vector<std::string>
