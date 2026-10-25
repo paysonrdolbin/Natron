@@ -67,13 +67,22 @@
 #include <ofxhPluginCache.h>
 #endif
 
-#define NATRON_DEFAULT_OCIO_CONFIG_NAME "blender"
-
-
-#define NATRON_CUSTOM_OCIO_CONFIG_NAME "Custom config"
+#ifdef NATRON_USE_OCIO
+#include <OpenColorIO/OpenColorABI.h> // OCIO_VERSION_HEX
+#endif
 
 // OCIO >= 2.2 resolves "ocio://<name>" to a config built into the library (no file on disk).
 #define NATRON_OCIO_BUILTIN_URI_PREFIX "ocio://"
+
+#if defined(NATRON_USE_OCIO) && (OCIO_VERSION_HEX >= 0x02050000)
+// Like Nuke 16+, new installs default to ACES 2.0, with the CG config built into OpenColorIO 2.5+.
+#define NATRON_DEFAULT_OCIO_CONFIG_NAME NATRON_OCIO_BUILTIN_URI_PREFIX "cg-config-v4.0.0_aces-v2.0_ocio-v2.5"
+#else
+#define NATRON_DEFAULT_OCIO_CONFIG_NAME "blender"
+#endif
+
+
+#define NATRON_CUSTOM_OCIO_CONFIG_NAME "Custom config"
 
 static bool
 isOcioBuiltinConfigURI(const QString& config)
@@ -685,6 +694,11 @@ Settings::initializeKnobsColorManagement()
                                      tr("ACES 2.0 config for CG work built into OpenColorIO 2.5 and later: "
                                         "a smaller set of color spaces than the studio config. Requires OpenColorIO 2.5 or later.").toStdString() ) );
     configs.push_back(ChoiceOption(NATRON_CUSTOM_OCIO_CONFIG_NAME));
+    for (std::size_t i = 0; i < configs.size(); ++i) {
+        if (configs[i].id == NATRON_DEFAULT_OCIO_CONFIG_NAME) {
+            defaultIndex = (int)i;
+        }
+    }
     _ocioConfigKnob->populateChoices(configs);
     _ocioConfigKnob->setDefaultValue(defaultIndex, 0);
     _ocioConfigKnob->setHintToolTip( tr("Select the OpenColorIO configuration you would like to use globally for all "
